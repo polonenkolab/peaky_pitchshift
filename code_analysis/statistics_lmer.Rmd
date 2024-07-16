@@ -1,0 +1,151 @@
+---
+title: "peaky_pitch"
+author: "mpolonenko"
+date: "2024-06-10"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd('C:/code/peaky_pitch/')
+easypackages::libraries('tidyverse', 'lme4', 'lmerTest', 'emmeans', 'psych')
+df = read.csv('data_plot/peak_data.csv') %>% select(-X) %>% 
+  separate(labels, c('marker', 'subject', 'regressor', 'stimulus', 'f0', 'peak'))
+df$marker = factor(df$marker, levels = c('mp', 'mjp'))
+df$subject = factor(df$subject)
+df$stimulus = factor(df$stimulus, levels = c('clicks', 'male', 'female'))
+df$f0 = factor(df$f0, levels = c('low', 'mid', 'high'))
+df$peak = factor(df$peak, levels = c('I', 'III', 'V'))
+df$regressor = factor(df$regressor, levels = c('pulses', 'anmp'))
+```
+
+```{r}
+df_lmer = df %>% filter(peak == 'V', marker == 'mjp', regressor == 'pulses') %>% 
+  mutate(hz = as.integer(as.character(
+    factor(f0, levels = c('low', 'mid', 'high'), labels = c(123, 150, 183)))),
+    stim = factor(stimulus, levels = c('male', 'female', 'clicks')),
+    z_hz = hz - 150) %>% select(subject, stim, hz, amp, lat, z_hz)
+
+df_lmer_z = merge(df_lmer %>% mutate(z_hz = hz - 150) %>% 
+                    gather(measure, value, -subject:-hz, -z_hz),
+                  df_lmer %>% mutate(z_hz = hz - 150) %>% 
+                    gather(measure, value, -subject:-hz, -z_hz) %>% 
+                    group_by(stim, hz, z_hz, measure) %>% 
+                    summarise(mean = mean(value), sd = sd(value)) %>%
+                    as.data.frame()) %>% 
+  mutate(z_value = (value - mean) / sd) %>%
+  select(subject, stim:measure, z_value) %>% 
+  spread(measure, z_value)
+
+md.lat = lmer(lat ~ stim * z_hz + (stim * z_hz | subject), data = df_lmer)
+step(md.lat)
+md.lat = lmer(lat ~ stim * z_hz + (1 | subject), data = df_lmer)  # stepwise says stim*z_hz but is singular (same with just z_hz as re)
+anova(md.lat)
+summary(md.lat)
+# emmeans(md.lat, list(pairwise ~ stim), adjust = 'fdr')
+
+md.amp = lmer(amp ~ stim * z_hz + (stim * z_hz | subject), 
+              data = df_lmer %>% mutate(amp = amp * 1000))
+step(md.amp)
+md.amp = lmer(amp ~ stim * z_hz + (1 | subject),
+              data = df_lmer %>% mutate(amp = amp * 1000))
+anova(md.amp)
+summary(md.amp)
+emmeans(md.amp, list(pairwise ~ stim), adjust = 'fdr')
+
+
+capture.output(anova(md.lat), file = 'data_plot/lmers.txt')
+capture.output(summary(md.lat), file = 'data_plot/lmers.txt', append = T)
+capture.output(anova(md.amp), file = 'data_plot/lmers.txt', append = T)
+capture.output(summary(md.amp), file = 'data_plot/lmers.txt', append = T)
+
+
+md.zlat = lmer(lat ~ stim * z_hz + (1 | subject), data = df_lmer_z)
+anova(md.zlat)
+summary(md.zlat)
+
+md.zamp = lmer(amp ~ stim * z_hz + (1 | subject), data = df_lmer_z)
+anova(md.zamp)
+summary(md.zamp)
+
+```
+
+```{r}
+
+
+md.lat.hz = lmer(lat ~ stimulus * hz + (1 + stimulus * hz | subject),
+              data = df_lmer %>% filter(stimulus != 'clicks'))
+step(md.lat.hz)
+md.lat.hz = lmer(lat ~ stimulus + hz + (1 | subject),
+              data = df_lmer %>% filter(stimulus != 'clicks'))
+summary(md.lat.hz)
+anova(md.lat.hz)
+
+md.lat.stim = lmer(lat ~ stimulus * hz + (1 + stimulus * hz | subject),
+                   data = df_lmer)
+step(md.lat.stim)
+md.lat.stim = lmer(lat ~ stimulus * hz + (1 + stimulus | subject),
+                   data = df_lmer %>% mutate(stimulus = factor(stimulus, levels = c('male', 'female', 'clicks'))))
+summary(md.lat.stim)
+
+
+md.lat.f0 = lmer(lat ~ stimulus * f0 + (1 + stimulus + f0 | subject),
+              data = df_lmer %>% filter(stimulus != 'clicks'))
+step(md.lat.f0)
+md.lat.f0 = lmer(lat ~ stimulus * f0 + (1 | subject),
+              data = df_lmer %>% filter(stimulus != 'clicks'))
+summary(md.lat.f0)
+anova(md.lat.f0)
+emmeans(md.lat.f0, list(pairwise ~ stimulus + f0), adjust = 'fdr')
+```
+
+## ICC3
+
+```{r icc}
+df_icc = df %>% gather(metric, value, -marker:-peak) %>% 
+  unite(temp, metric, marker) %>% spread(temp, value) %>% 
+  filter(peak == 'V')
+
+icc_lat = lapply(split(df_icc, df_icc$regressor), function(df_icc)
+  ICC(df_icc %>% select(lat_mjp, lat_mp))$results %>% filter(type == 'ICC3'))
+icc_amp = lapply(split(df_icc, df_icc$regressor), function(df_icc)
+  ICC(df_icc %>% select(amp_mjp, amp_mp))$results %>% filter(type == 'ICC3'))
+
+capture.output(icc_lat, file = 'data_plot/icc3_waveV.txt')
+capture.output(icc_amp, file = 'data_plot/icc3_waveV.txt', append = T)
+
+colors = c('black', 'dodgerblue', 'orange')
+shapes = c(21, 22, 23)
+p.icc = df %>% filter(peak == 'V') %>% gather(metric, value, -marker:-peak) %>%
+  spread(marker, value) %>% as.data.frame() %>% 
+  ggplot(aes(x = mp, y = mjp, color = stimulus, shape = f0))+
+  geom_abline(slope = 1, intercept = 0, color='gray')+
+  geom_point()+
+  scale_color_manual(values = colors)+
+  scale_shape_manual(values = shapes)+
+  facet_wrap(~metric, scales = 'free')+
+  theme_bw()
+print(p.icc)
+  
+
+```
+
+## lmer models
+
+```{r lmer lat}
+df_lmer = df %>% filter(peak == 'V') %>% 
+  group_by(subject, regressor, stimulus, f0) %>% 
+  summarise(amp = mean(amp), lat = mean(lat)) %>% as.data.frame()
+
+md.lat.pulses = lmer(lat ~ stimulus * f0 + (1 + stimulus * f0 | subject),
+                     data = df %>% filter(peak == 'V', regressor == 'pulses', stimulus != 'clicks'))
+
+step(md.lat.pulses)
+anova(md.lat.pulses)
+emmeans(md.lat.pulses, list(pairwise ~ stimulus + f0), adjust = 'fdr')
+
+
+
+```

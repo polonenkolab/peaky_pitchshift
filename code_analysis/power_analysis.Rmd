@@ -1,0 +1,106 @@
+---
+title: "power_analysis"
+author: "mjp"
+date: "6/2/2021"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+setwd('/mnt/data/peaky_pitch/')
+easypackages::libraries('ggplot2', 'lme4', 'tidyr', 'dplyr', 'lmerTest', 'doBy', 'psych', 'simr', 'pwr', 'cowplot')
+
+```
+
+```{r}
+# r 0-15 0.68 (.56-.78) for 0-15
+# r 0-40 0.53 (.50-.60) for 0-40
+# 
+# I .21, .13, d=.5
+# III .42, .11, 1.16
+# V, .54, .09, 1.76
+
+n <- c()
+d = seq(0.02, 2, .02)
+for (i in d){
+  n <- c(n, ceiling(pwr.t.test(sig.level = 0.05, power = 0.8, d = i, alternative = 'two.sided')[['n']]))
+}
+df.d = data.frame(cbind(d, n))
+
+plot.d = df.d %>% ggplot(aes(x=d, y=n)) +
+  geom_point() +
+  geom_line() +
+  scale_x_continuous(limits = c(.5, 2)) +
+  scale_y_continuous(limits = c(0, 30), breaks = seq(0, 100, 5)) +
+  geom_vline(xintercept = 0.5, color = 'green') +
+  geom_vline(xintercept = 1.16, color='red') +
+  geom_vline(xintercept = 1.76, color='blue') +
+  annotate('text', x = 0.52, y = 30, label = 'wave I\n>50', color = 'green', hjust = 0, vjust = 1) +
+  annotate('text', x = 1.18, y = 30, label = 'wave III\n13', color = 'red', hjust = 0, vjust = 1) +
+  annotate('text', x = 1.78, y = 30, label = 'wave V\n7', color = 'blue', hjust = 0, vjust = 1) +
+  labs(x = "Cohen's d for t-test\non latency difference between male-female narrator", y = 'N for power = 0.8')
+
+
+n <- c()
+r = seq(0.1, 0.8, .0001)
+for (i in r){
+  n <- c(n, ceiling(pwr.r.test(sig.level = 0.05, power = 0.8, r = i, alternative = 'two.sided')[['n']]))
+}
+df.r = data.frame(cbind(r, n))
+
+
+plot.r = df.r %>% ggplot(aes(x=r, y=n)) +
+  # geom_point() +
+  geom_line() +
+  scale_x_continuous(limits = c(.26, .5), breaks = seq(.1, 1, .02)) +
+  scale_y_continuous(limits = c(30, 120), breaks = seq(0, 200, 5)) +
+  # geom_vline(xintercept = .3, color='red') +
+  # geom_vline(xintercept = .53, color='red') +
+  # geom_vline(xintercept = .68, color='blue') +
+  # annotate('text', x = .54, y = 30, label = '0-40 ms (hp 30 Hz)\n25', color = 'red', hjust = 0, vjust = 1) +
+  # annotate('text', x = .69, y = 30, label = '0-15 ms (hp 150 Hz)\n14', color = 'blue', hjust = 0, vjust = 1) +
+  labs(x = "Correlation r", y = 'N for power = 0.8')
+print(plot.r)
+
+plot_power = plot_grid(plot.d, plot.r)
+print(plot_power)
+ggsave(plot_power, file = 'power_analysis.jpg', width = 8, height = 4)
+
+```
+
+# proportion test (onen sample)
+```{r}
+n <- c()
+h <- c()
+p1 = seq(.6, .9, .01)
+for (i in p1){
+  h <- c(h, ES.h(i, .5))
+  n <- c(n, ceiling(pwr.p.test(sig.level = 0.05, power = 0.8, h = ES.h(i, .5), alternative = 'greater')[['n']]))
+}
+df.prop = data.frame(cbind(p1, h, n))
+
+df.prop %>% ggplot(aes(x=p1, y=n)) + geom_point() + geom_line() + labs(x='proportion', y='n') + scale_x_continuous(limits=c(.7, .9), breaks=seq(0, 1, .05)) + scale_y_continuous(limits=c(0, 40), breaks=seq(0, 40, 4))
+df.prop %>% filter(h >=0.5)
+
+x = c(0, 1)  # not faster 0, faster 1
+prob = c(.3, .7)
+sample(x, size = 15, prob=prob, replace=TRUE)
+
+
+n <- c()
+r = seq(.1, .9, .01)
+for (i in r){
+  n <- c(n, ceiling(pwr.r.test(sig.level = 0.05, power = 0.8, r = i, alternative = 'two.sided')[['n']]))
+}
+df.r = data.frame(cbind(r, n))
+df.r %>% ggplot(aes(x=r, y=n)) + geom_point() + geom_line() + scale_x_continuous(limits = c(.2, .9)) + scale_y_continuous(limits = c(0, 150))
+
+```
