@@ -1,0 +1,13 @@
+#PBS -S /bin/bash
+#PBS -q batch
+#PBS -l nodes=1:ppn=20
+#PBS -l walltime=48:00:00
+#PBS -l mem=128GB
+#PBS -e modeling_err.err
+#PBS -M mpolonen@umn.edu
+#PBS -m abe
+
+cd $PBS_0_WORKDIR/
+module load python/conda/3.9
+source activate expy2
+python3 /labs/polonenkolab/Melissa/peaky_pitch/0_create_model.py
