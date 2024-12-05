@@ -2,6 +2,7 @@
 This repository is the code for the article "Fundamental frequency predominantly drives talker differences in auditory brainstem responses to continuous speech" by Polonenko & Maddox (2024).
 
 Jasa-EL: Melissa J. Polonenko, Ross K. Maddox; Fundamental frequency predominantly drives talker differences in auditory brainstem responses to continuous speech. JASA Express Lett. 1 November 2024; 4 (11): 114401. https://doi.org/10.1121/10.0034329
+
 BioRxiv: 2024.07.12.603125; doi: https://doi.org/10.1101/2024.07.12.603125
 
 The EEG-BIDS format data for the paper are available on OpenNeuro: [https://openneuro.org/datasets/ds005340/versions/1.0.4]
